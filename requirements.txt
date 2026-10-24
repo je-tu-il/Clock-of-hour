@@ -1,0 +1,2 @@
+# Dépendances : Aucune bibliothèque externe requise !
+# Utilise uniquement la bibliothèque standard Python (tkinter, time, math).

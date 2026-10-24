@@ -1,0 +1,104 @@
+name: Build & Release Clock-of-hour
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: Clock-of-hour-windows-x64.exe
+            output_name: Clock-of-hour.exe
+            platform: windows
+          - os: ubuntu-latest
+            artifact_name: Clock-of-hour-linux-x64
+            output_name: Clock-of-hour
+            platform: linux
+          - os: macos-latest
+            artifact_name: Clock-of-hour-macos
+            output_name: Clock-of-hour
+            platform: macos
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install PyInstaller & Tkinter (Linux)
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+        shell: bash
+
+      - name: Install Tkinter on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+
+      - name: Build Standalone Executable
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --name "Clock-of-hour" main.py
+        shell: bash
+
+      - name: Rename and Package Binary
+        shell: bash
+        run: |
+          mkdir -p release_assets
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            cp "dist/Clock-of-hour.exe" "release_assets/${{ matrix.artifact_name }}"
+          else
+            chmod +x "dist/Clock-of-hour"
+            cp "dist/Clock-of-hour" "release_assets/${{ matrix.artifact_name }}"
+          fi
+
+      - name: Upload Platform Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: release_assets/${{ matrix.artifact_name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all_artifacts
+          merge-multiple: true
+
+      - name: List Artifacts
+        run: ls -la all_artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}
+          name: "Clock of Hour ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}"
+          files: all_artifacts/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
