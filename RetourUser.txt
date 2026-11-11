@@ -1,0 +1,9 @@
+Ne se souvent pas si elle était sur le bureau au lancement au demarrage
+
+
+Il faut cliquer 2 fois pour entrer dans le mode bureau ou en sortir
+Idem pour entrer dans les parametres
+Reaction bizarre quand on est sur le mode bureau et qu'on deplace ca zigza ca fait des micro mouvement et autre
+Retirer le mode 1er plan
+Pas possible de tester si c'est fidele au demarrage car ce qui est mis dans le shell:strtup renvoie que le chemin est introuvable
+Je ne sais pas si ca serait possible de ne pas mettre un bat mais autre chose sans dependance (a part clock of hour) pour eviter un pop up noir au demarrage
