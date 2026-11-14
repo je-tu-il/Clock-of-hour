@@ -15,7 +15,7 @@ if exist "%~dp0venv\Scripts\python.exe" (
     echo [*] Environnement virtuel [venv] detecte.
     echo [*] Lancement automatique direct en cours...
     echo.
-    choice /c od /t 2 /d d /n /m "Appuyez sur [O] pour les Options (lancement dans 2s)... "
+    choice /c od /t 1 /d d /n /m "Appuyez sur [O] pour les Options (lancement dans 1s)... "
     if errorlevel 2 goto AUTO_RUN
     if errorlevel 1 goto OPTIONS_MENU
 )
@@ -154,14 +154,14 @@ pause
 goto OPTIONS_MENU
 
 :AUTO_RUN
-echo [*] Lancement de Clock-of-Hour...
-if exist "%~dp0Clock-of-Hour.exe" (
-    start "" "%~dp0Clock-of-Hour.exe"
-    exit /b 0
-)
+echo [*] Lancement direct et ultra-rapide de Clock-of-Hour...
 set "PYW_BIN=%PY_BIN:python.exe=pythonw.exe%"
 if exist "%PYW_BIN%" (
     start "" "%PYW_BIN%" "%~dp0main.py"
+    exit /b 0
+)
+if exist "%~dp0Clock-of-Hour.exe" (
+    start "" "%~dp0Clock-of-Hour.exe"
     exit /b 0
 )
 start "" pythonw "%~dp0main.py"

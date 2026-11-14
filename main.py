@@ -20,6 +20,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import tkinter as tk
 from tkinter import messagebox
@@ -127,8 +128,95 @@ def resolve_startup_target(app_dir=None, frozen=None, executable=None, pythonw_o
     return pythonw_path, f'"{main_py}"', resolved_dir
 
 
+class _GUID(ctypes.Structure):
+    _fields_ = [
+        ("Data1", wintypes.DWORD),
+        ("Data2", wintypes.WORD),
+        ("Data3", wintypes.WORD),
+        ("Data4", wintypes.BYTE * 8)
+    ]
+    def __init__(self, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8):
+        super().__init__(l, w1, w2, (wintypes.BYTE * 8)(b1, b2, b3, b4, b5, b6, b7, b8))
+
+
+_CLSID_ShellLink = _GUID(0x00021401, 0, 0, 0xC0, 0, 0, 0, 0, 0, 0, 0x46)
+_IID_IShellLinkW = _GUID(0x000214F9, 0, 0, 0xC0, 0, 0, 0, 0, 0, 0, 0x46)
+_IID_IPersistFile = _GUID(0x0000010b, 0, 0, 0xC0, 0, 0, 0, 0, 0, 0, 0x46)
+
+
+def _create_windows_shortcut_com(lnk_path, target_path, arguments="", working_dir="", description="Clock-of-Hour"):
+    """Crée un raccourci Windows .lnk in-process ultra-rapide (<1ms) via l'interface COM IShellLinkW."""
+    ole32 = getattr(ctypes, "oledll", None)
+    if not ole32 or not hasattr(ole32, "ole32"):
+        raise OSError("ole32 indisponible")
+    ole32.ole32.CoInitialize(None)
+
+    shell_link = ctypes.c_void_p()
+    hr = ole32.ole32.CoCreateInstance(
+        ctypes.byref(_CLSID_ShellLink), None, 1,
+        ctypes.byref(_IID_IShellLinkW), ctypes.byref(shell_link)
+    )
+    if hr != 0 or not shell_link:
+        raise OSError(f"CoCreateInstance IShellLinkW a échoué (hr={hr})")
+
+    vtbl = ctypes.cast(
+        ctypes.cast(shell_link, ctypes.POINTER(ctypes.c_void_p)).contents,
+        ctypes.POINTER(ctypes.c_void_p)
+    )
+
+    QueryInterface_proto = ctypes.WINFUNCTYPE(ctypes.HRESULT, ctypes.c_void_p, ctypes.POINTER(_GUID), ctypes.POINTER(ctypes.c_void_p))
+    SetDescription_proto = ctypes.WINFUNCTYPE(ctypes.HRESULT, ctypes.c_void_p, wintypes.LPCWSTR)
+    SetWorkingDirectory_proto = ctypes.WINFUNCTYPE(ctypes.HRESULT, ctypes.c_void_p, wintypes.LPCWSTR)
+    SetArguments_proto = ctypes.WINFUNCTYPE(ctypes.HRESULT, ctypes.c_void_p, wintypes.LPCWSTR)
+    SetPath_proto = ctypes.WINFUNCTYPE(ctypes.HRESULT, ctypes.c_void_p, wintypes.LPCWSTR)
+    Release_proto = ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)
+
+    QueryInterface = QueryInterface_proto(vtbl[0])
+    Release = Release_proto(vtbl[2])
+    SetDescription = SetDescription_proto(vtbl[7])
+    SetWorkingDirectory = SetWorkingDirectory_proto(vtbl[9])
+    SetArguments = SetArguments_proto(vtbl[11])
+    SetPath = SetPath_proto(vtbl[20])
+
+    SetPath(shell_link, target_path)
+    if arguments:
+        SetArguments(shell_link, arguments)
+    if working_dir:
+        SetWorkingDirectory(shell_link, working_dir)
+    if description:
+        SetDescription(shell_link, description)
+
+    persist_file = ctypes.c_void_p()
+    hr_qi = QueryInterface(shell_link, ctypes.byref(_IID_IPersistFile), ctypes.byref(persist_file))
+    if hr_qi != 0 or not persist_file:
+        Release(shell_link)
+        raise OSError(f"QueryInterface IPersistFile a échoué (hr={hr_qi})")
+
+    pf_vtbl = ctypes.cast(
+        ctypes.cast(persist_file, ctypes.POINTER(ctypes.c_void_p)).contents,
+        ctypes.POINTER(ctypes.c_void_p)
+    )
+    Save_proto = ctypes.WINFUNCTYPE(ctypes.HRESULT, ctypes.c_void_p, wintypes.LPCWSTR, wintypes.BOOL)
+    PF_Release = Release_proto(pf_vtbl[2])
+    Save = Save_proto(pf_vtbl[6])
+
+    hr_save = Save(persist_file, lnk_path, True)
+    PF_Release(persist_file)
+    Release(shell_link)
+
+    if hr_save != 0 or not os.path.isfile(lnk_path):
+        raise OSError(f"IPersistFile::Save a échoué (hr={hr_save})")
+
+
 def create_windows_shortcut(lnk_path, target_path, arguments="", working_dir="", description="Clock-of-Hour"):
-    """Crée un raccourci Windows .lnk via WScript.Shell sans fenêtre console ni dépendance externe."""
+    """Crée un raccourci Windows .lnk instantané via COM in-process avec fallback PowerShell."""
+    try:
+        _create_windows_shortcut_com(lnk_path, target_path, arguments, working_dir, description)
+        if os.path.isfile(lnk_path):
+            return
+    except Exception:
+        pass
+
     ps_script = (
         "$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:COH_LNK_PATH); "
         "$s.TargetPath = $env:COH_LNK_TARGET; "
@@ -271,9 +359,18 @@ class SettingsWindow(tk.Toplevel):
         self.theme_var.set("Sombre" if self.app.dark_mode else "Clair")
 
     def toggle_startup(self):
-        ok = self.app.set_startup_enabled(self.startup_var.get())
-        if not ok:
-            self.startup_var.set(self.app.check_startup_enabled())
+        desired_state = self.startup_var.get()
+
+        def _worker():
+            ok = self.app.set_startup_enabled(desired_state)
+            if not ok:
+                try:
+                    if self.winfo_exists():
+                        self.after(0, lambda: self.startup_var.set(self.app.check_startup_enabled()))
+                except Exception:
+                    pass
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     def save_and_close(self):
         self.app.save_config()
