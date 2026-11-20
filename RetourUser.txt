@@ -1,2 +1,0 @@
-Quand je coche au demarrage cela arrete pendant 2s l'horloge et la case se coche seulement apres, retirer ce lag
-Lancement plutôt lent si tu peux optimiser 
