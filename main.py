@@ -277,8 +277,9 @@ class SettingsWindow(tk.Toplevel):
         super().__init__(parent)
         self.app = app
         self.title("Paramètres — Clock-of-Hour")
-        self.geometry("460x455")
-        self.resizable(False, False)
+        self.geometry("510x455")
+        self.minsize(510, 455)
+        self.resizable(True, True)
         self.configure(bg="#1a1c23")
 
         if not self.app.desktop_mode:
@@ -287,13 +288,13 @@ class SettingsWindow(tk.Toplevel):
         self.protocol("WM_DELETE_WINDOW", self.save_and_close)
 
         lbl_title = tk.Label(
-            self, text="⚙ Paramètres de l'Horloge",
+            self, text="Réglages de l’horloge",
             font=("Segoe UI", 16, "bold"), fg="#ffffff", bg="#1a1c23"
         )
         lbl_title.pack(pady=(15, 10))
 
         frame_shortcuts = tk.LabelFrame(
-            self, text="  Raccourcis Clavier & Contrôles  ",
+            self, text="  Raccourcis et commandes  ",
             font=("Segoe UI", 10, "bold"), fg="#60a5fa", bg="#1a1c23", padx=12, pady=10
         )
         frame_shortcuts.pack(fill="x", padx=20, pady=8)
@@ -311,10 +312,10 @@ class SettingsWindow(tk.Toplevel):
             row = tk.Frame(frame_shortcuts, bg="#1a1c23")
             row.pack(fill="x", pady=2)
             tk.Label(row, text=k, font=("Consolas", 10, "bold"), fg="#34d399", bg="#1a1c23", width=16, anchor="w").pack(side="left")
-            tk.Label(row, text=desc, font=("Segoe UI", 9), fg="#94a3b8", bg="#1a1c23", anchor="w").pack(side="left")
+            tk.Label(row, text=desc, font=("Segoe UI", 9), fg="#bbc7d8", bg="#1a1c23", anchor="w").pack(side="left")
 
         frame_opts = tk.LabelFrame(
-            self, text="  Préférences Système  ",
+            self, text="  Affichage et démarrage  ",
             font=("Segoe UI", 10, "bold"), fg="#60a5fa", bg="#1a1c23", padx=12, pady=10
         )
         frame_opts.pack(fill="x", padx=20, pady=8)
@@ -343,8 +344,8 @@ class SettingsWindow(tk.Toplevel):
         chk_startup.pack(side="left")
 
         btn_close = tk.Button(
-            self, text="Enregistrer & Fermer", font=("Segoe UI", 10, "bold"),
-            bg="#10b981", fg="#ffffff", activebackground="#059669", activeforeground="#ffffff",
+            self, text="Enregistrer et fermer", font=("Segoe UI", 10, "bold"),
+            bg="#a0e6c2", fg="#13261c", activebackground="#82ceaa", activeforeground="#13261c",
             relief="flat", padx=20, pady=6, cursor="hand2", command=self.save_and_close
         )
         btn_close.pack(pady=15)
