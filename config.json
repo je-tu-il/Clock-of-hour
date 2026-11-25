@@ -1,8 +1,8 @@
 {
-  "width": 450,
-  "height": 450,
-  "x": 640,
-  "y": 67,
+  "width": 750,
+  "height": 750,
+  "x": 418,
+  "y": -5,
   "dark_mode": true,
-  "desktop_mode": false
+  "desktop_mode": true
 }
